@@ -46,11 +46,10 @@ class Recommender:
     def score(self, user: UserProfile, song: Song) -> float:
         points = 0.0
         if song.genre == user.favorite_genre:
-            points += 2.0
-        if song.mood == user.favorite_mood:
             points += 1.0
-        # Energy similarity: 1.0 when perfect match, 0.0 when maximally different
-        points += 1.0 - abs(song.energy - user.target_energy)
+        if song.mood == user.favorite_mood:
+            points += 0.5
+        points += 2.0 * (1.0 - abs(song.energy - user.target_energy))
         return points
 
     def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
@@ -92,18 +91,18 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     score = 0.0
     reasons = []
 
-    # Genre match: +2.0
+    # Genre match: +1.0 (halved from original +2.0)
     if song["genre"] == user_prefs.get("genre"):
-        score += 2.0
-        reasons.append(f"genre match ({song['genre']}) (+2.0)")
-
-    # Mood match: +1.0
-    if song["mood"] == user_prefs.get("mood"):
         score += 1.0
-        reasons.append(f"mood match ({song['mood']}) (+1.0)")
+        reasons.append(f"genre match ({song['genre']}) (+1.0)")
 
-    # Energy similarity: 0.0 to 1.0
-    energy_sim = 1.0 - abs(song["energy"] - user_prefs.get("energy", 0.5))
+    # Mood match: +0.5 (restored as tiebreaker, down from original +1.0)
+    if song["mood"] == user_prefs.get("mood"):
+        score += 0.5
+        reasons.append(f"mood match ({song['mood']}) (+0.5)")
+
+    # Energy similarity: 0.0 to 2.0 (doubled from original 0.0 to 1.0)
+    energy_sim = 2.0 * (1.0 - abs(song["energy"] - user_prefs.get("energy", 0.5)))
     score += energy_sim
     reasons.append(f"energy similarity (+{energy_sim:.2f})")
 
