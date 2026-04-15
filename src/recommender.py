@@ -17,6 +17,8 @@ class Song:
     valence: float
     danceability: float
     acousticness: float
+    instrumentalness: float
+    speechiness: float
 
 @dataclass
 class UserProfile:
@@ -27,7 +29,11 @@ class UserProfile:
     favorite_genre: str
     favorite_mood: str
     target_energy: float
-    likes_acoustic: bool
+    target_valence: float
+    target_danceability: float
+    target_acousticness: float
+    target_instrumentalness: float
+    target_speechiness: float
 
 class Recommender:
     """
@@ -37,28 +43,80 @@ class Recommender:
     def __init__(self, songs: List[Song]):
         self.songs = songs
 
+    def score(self, user: UserProfile, song: Song) -> float:
+        points = 0.0
+        if song.genre == user.favorite_genre:
+            points += 2.0
+        if song.mood == user.favorite_mood:
+            points += 1.0
+        # Energy similarity: 1.0 when perfect match, 0.0 when maximally different
+        points += 1.0 - abs(song.energy - user.target_energy)
+        return points
+
     def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
-        # TODO: Implement recommendation logic
-        return self.songs[:k]
+        scored = sorted(self.songs, key=lambda s: self.score(user, s), reverse=True)
+        return scored[:k]
 
     def explain_recommendation(self, user: UserProfile, song: Song) -> str:
-        # TODO: Implement explanation logic
-        return "Explanation placeholder"
+        parts = []
+        if song.genre == user.favorite_genre:
+            parts.append(f"genre match ({song.genre}) +2.0")
+        if song.mood == user.favorite_mood:
+            parts.append(f"mood match ({song.mood}) +1.0")
+        energy_sim = 1.0 - abs(song.energy - user.target_energy)
+        parts.append(f"energy similarity +{energy_sim:.2f}")
+        total = self.score(user, song)
+        return f"Score {total:.2f}: " + ", ".join(parts)
 
 def load_songs(csv_path: str) -> List[Dict]:
-    """
-    Loads songs from a CSV file.
-    Required by src/main.py
-    """
-    # TODO: Implement CSV loading logic
-    print(f"Loading songs from {csv_path}...")
-    return []
+    """Read a CSV file and return a list of song dicts with numeric fields converted."""
+    import csv
+
+    int_fields = {"id", "tempo_bpm"}
+    float_fields = {"energy", "valence", "danceability", "acousticness",
+                    "instrumentalness", "speechiness"}
+
+    songs = []
+    with open(csv_path, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            for key in int_fields:
+                row[key] = int(row[key])
+            for key in float_fields:
+                row[key] = float(row[key])
+            songs.append(row)
+    return songs
+
+def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
+    """Return (score, reasons) for a song matched against user preferences."""
+    score = 0.0
+    reasons = []
+
+    # Genre match: +2.0
+    if song["genre"] == user_prefs.get("genre"):
+        score += 2.0
+        reasons.append(f"genre match ({song['genre']}) (+2.0)")
+
+    # Mood match: +1.0
+    if song["mood"] == user_prefs.get("mood"):
+        score += 1.0
+        reasons.append(f"mood match ({song['mood']}) (+1.0)")
+
+    # Energy similarity: 0.0 to 1.0
+    energy_sim = 1.0 - abs(song["energy"] - user_prefs.get("energy", 0.5))
+    score += energy_sim
+    reasons.append(f"energy similarity (+{energy_sim:.2f})")
+
+    return score, reasons
+
 
 def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
-    """
-    Functional implementation of the recommendation logic.
-    Required by src/main.py
-    """
-    # TODO: Implement scoring and ranking logic
-    # Expected return format: (song_dict, score, explanation)
-    return []
+    """Score every song, sort descending, and return the top k with explanations."""
+    scored = []
+    for song in songs:
+        score, reasons = score_song(user_prefs, song)
+        explanation = ", ".join(reasons)
+        scored.append((song, score, explanation))
+
+    scored.sort(key=lambda item: item[1], reverse=True)
+    return scored[:k]
