@@ -88,7 +88,7 @@ See [reflection.md](reflection.md) for detailed profile-pair comparisons.
 
 2. **Support multiple profiles per user.** Real people have a gym playlist and a study playlist. Instead of one fixed taste profile, the system could let a user define context-specific profiles ("morning commute," "late night coding") and switch between them.
 
-3. **Add diversity enforcement to ranking.** Right now, if a user likes lofi, they get three lofi songs in a row. A diversity-aware ranker could ensure the top 5 includes at least two different genres or moods, helping users discover music outside their bubble instead of reinforcing it.
+3. **Strengthen diversity enforcement.** The functional API already includes a diversity-aware greedy selection mode (`diverse=True`) that penalizes repeated artists (×0.5 per repeat) and over-represented genres (3rd song in the same genre: ×0.70, 4th+: ×0.40). This reduces filter-bubble effects — a lofi listener no longer sees three lofi tracks in a row, and the system surfaces songs from adjacent genres that still match on mood and energy. The displayed score remains unpenalized so users see true match quality, and a "(diversity pick)" note flags when the penalty changed the pick order. Future improvements could add mood-level diversity (e.g., no more than two "chill" songs in a top 5) and let users tune the penalty strength.
 
 ---
 
@@ -100,4 +100,4 @@ Using AI tools helped me move faster through the mechanical parts — generating
 
 What surprised me most is how few ingredients it takes for a recommendation to "feel" real. Three signals — genre, mood, and energy distance — are enough to produce results that often match human intuition. Library Rain really does feel like the right pick for a chill lofi listener. But that same simplicity is what makes the system brittle: it only takes one edge case (a user who wants classical but aggressive) to expose that the system is pattern-matching on surface features, not understanding music.
 
-If I extended this project, I would incorporate valence and acousticness into the scoring to capture emotional tone and sonic texture, add a diversity constraint so the top 5 is not just five variations of the same vibe, and experiment with letting users rate recommendations so the system could learn and adjust weights over time instead of relying on fixed ones.
+If I extended this project, I would incorporate valence and acousticness into the scoring to capture emotional tone and sonic texture, strengthen the existing diversity penalties with mood-level constraints so the top 5 covers a wider emotional range, and experiment with letting users rate recommendations so the system could learn and adjust weights over time instead of relying on fixed ones.

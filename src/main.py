@@ -9,8 +9,17 @@ You will implement the functions in recommender.py:
 - recommend_songs
 """
 
+import argparse
+import re
+
 from tabulate import tabulate
 from .recommender import load_songs, recommend_songs, STRATEGIES, max_score_for_strategy
+
+# ANSI color codes for score-bar highlighting
+_GREEN = "\033[32m"
+_YELLOW = "\033[33m"
+_RED = "\033[31m"
+_RESET = "\033[0m"
 
 
 def _wrap(text: str, width: int) -> str:
@@ -36,6 +45,21 @@ def _score_bar(score: float, max_score: float, width: int = 20) -> str:
     filled = round(ratio * width)
     empty = width - filled
     return f"[{'=' * filled}{'-' * empty}] {score:.2f}/{max_score:.1f}"
+
+
+def _colorize_bars(line: str) -> str:
+    """Post-process a rendered table line to add ANSI color to score bars."""
+    def _repl(m: re.Match) -> str:
+        bar = m.group(1)
+        ratio = bar.count("=") / len(bar) if bar else 0
+        if ratio >= 0.70:
+            color = _GREEN
+        elif ratio >= 0.40:
+            color = _YELLOW
+        else:
+            color = _RED
+        return f"[{color}{bar}{_RESET}]"
+    return re.sub(r"\[([=-]{10,})\]", _repl, line)
 
 
 def print_profile_header(name: str, prefs: dict) -> None:
@@ -76,10 +100,26 @@ def print_results(recs: list, max_score: float, mode_label: str) -> None:
     )
     # Indent every line for visual nesting under the profile header
     for line in table.splitlines():
-        print(f"  {line}")
+        print(f"  {_colorize_bars(line)}")
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="VibeFinder 1.0 — Music Recommender Simulation")
+    parser.add_argument(
+        "--strategy",
+        choices=sorted(STRATEGIES),
+        default="balanced",
+        help="Scoring strategy (default: balanced)",
+    )
+    parser.add_argument(
+        "--compare",
+        nargs=2,
+        choices=sorted(STRATEGIES),
+        metavar="STRATEGY",
+        help="Compare two strategies side by side (e.g., --compare balanced discovery)",
+    )
+    args = parser.parse_args()
+
     songs = load_songs("data/songs.csv")
 
     profiles = {
@@ -145,19 +185,29 @@ def main() -> None:
         },
     }
 
-    strategy = "balanced"
-    max_score = max_score_for_strategy(strategy)
-
-    for name, user_prefs in profiles.items():
-        print_profile_header(name, user_prefs)
-
-        for mode_label, diverse in [("STANDARD RANKING", False),
-                                    ("DIVERSE RANKING", True)]:
-            recs = recommend_songs(user_prefs, songs, k=5,
-                                   strategy=strategy, diverse=diverse)
-            print_results(recs, max_score, mode_label)
-
-        print()
+    if args.compare:
+        strat_a, strat_b = args.compare
+        print(f"\n  Comparing: {strat_a} vs {strat_b}")
+        for name, user_prefs in profiles.items():
+            print_profile_header(name, user_prefs)
+            for strat in [strat_a, strat_b]:
+                ms = max_score_for_strategy(strat)
+                recs = recommend_songs(user_prefs, songs, k=5,
+                                       strategy=strat, diverse=False)
+                print_results(recs, ms, f"{strat.upper()} STRATEGY")
+            print()
+    else:
+        strategy = args.strategy
+        max_score = max_score_for_strategy(strategy)
+        print(f"\n  Strategy: {strategy}  |  Max possible score: {max_score:.1f}")
+        for name, user_prefs in profiles.items():
+            print_profile_header(name, user_prefs)
+            for mode_label, diverse in [("STANDARD RANKING", False),
+                                        ("DIVERSE RANKING", True)]:
+                recs = recommend_songs(user_prefs, songs, k=5,
+                                       strategy=strategy, diverse=diverse)
+                print_results(recs, max_score, mode_label)
+            print()
 
 
 if __name__ == "__main__":
